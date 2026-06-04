@@ -8,7 +8,7 @@ function safeCompare(a, b) {
   const left = Buffer.from(String(a || ""));
   const right = Buffer.from(String(b || ""));
 
-  if (left.length !== right.length) return false;
+  if (!left.length || left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
 }
 
@@ -55,6 +55,9 @@ export function createApp() {
       webhookSecretSet: Boolean(cfg.CMB_WHATSAPP_WEBHOOK_SECRET),
       aiEndpointSet: Boolean(cfg.COOKMYBOTS_AI_ENDPOINT),
       aiKeySet: Boolean(cfg.COOKMYBOTS_AI_KEY),
+      mongodbUriSet: Boolean(cfg.MONGODB_URI),
+      ownerKnowledgeSet: Boolean(cfg.OWNER_KNOWLEDGE),
+      autoReplyCooldownSeconds: cfg.AUTO_REPLY_COOLDOWN_SECONDS,
       autoReplyEnabled: cfg.AUTO_REPLY_ENABLED,
     });
   });
@@ -64,14 +67,15 @@ export function createApp() {
     const received = String(req.headers["x-cookmybots-webhook-secret"] || "").trim();
 
     try {
-      log.info("whatsapp.webhook.start", {
+      log.info("whatsapp.managed_webhook.receive", {
         platform: "whatsapp",
+        source: "cookmybots-managed",
         hasBody: Boolean(req.body),
         secretConfigured: Boolean(expected),
       });
 
       if (!expected) {
-        log.error("whatsapp.webhook.secret_missing", {
+        log.error("whatsapp.managed_webhook.secret_missing", {
           platform: "whatsapp",
         });
 
@@ -83,7 +87,7 @@ export function createApp() {
       }
 
       if (!safeCompare(received, expected)) {
-        log.warn("whatsapp.webhook.unauthorized", {
+        log.warn("whatsapp.managed_webhook.unauthorized", {
           platform: "whatsapp",
           secretProvided: Boolean(received),
         });
@@ -98,7 +102,7 @@ export function createApp() {
       const event = normalizeInbound(req.body || {});
 
       if (!event.text) {
-        log.info("whatsapp.webhook.no_text", {
+        log.info("whatsapp.managed_webhook.no_text", {
           platform: "whatsapp",
           messageType: event.messageType,
           isGroup: event.isGroup,
@@ -112,12 +116,18 @@ export function createApp() {
 
       const reply = await handleText(event);
 
+      log.info("whatsapp.managed_webhook.respond", {
+        platform: "whatsapp",
+        replySet: Boolean(reply),
+        isGroup: Boolean(event.isGroup),
+      });
+
       return res.json({
         ok: true,
         reply: String(reply || "").slice(0, 4000),
       });
     } catch (err) {
-      log.error("whatsapp.webhook.failure", {
+      log.error("whatsapp.managed_webhook.failure", {
         platform: "whatsapp",
         error: safeErr(err),
       });

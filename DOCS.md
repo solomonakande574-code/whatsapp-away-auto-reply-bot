@@ -1,79 +1,88 @@
 # WhatsApp Away Reply Bot
 
-This is a CookMyBots managed WhatsApp brain service.
+This is a CookMyBots managed WhatsApp brain service for AI-first away auto-replies.
 
-CookMyBots handles WhatsApp connection, phone pairing, sessions, and message routing. This project does not implement WhatsApp Cloud API webhooks, Baileys sessions, QR login, or phone pairing.
+CookMyBots handles WhatsApp connection, phone pairing, sessions, and message delivery. This project is only the bot brain. It does not implement WhatsApp Cloud API webhooks, Baileys sessions, QR login, or phone pairing, and it does not require WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, or WHATSAPP_VERIFY_TOKEN.
 
-The bot is an AI-first away auto-reply assistant. When CookMyBots routes a WhatsApp message to this service, the bot uses CookMyBots AI Gateway to generate a brief, friendly WhatsApp-native away reply with appropriate emojis.
+## What the bot does
 
-## Owner knowledge
-
-The raw owner prompt is preserved exactly as:
-
-Create a bot that automatically responds to messages when not online,with emojis
-
-This is the only source of truth for what the bot knows. The bot must not invent business details, products, prices, contacts, locations, delivery details, payment details, support policies, moderation rules, or community behavior.
-
-If someone asks for details that the owner did not provide, the bot should politely say that the owner has not provided that detail yet.
-
-## Public behavior
-
-There are no slash commands, menus, or command maps.
-
-Users simply send normal WhatsApp messages. The bot replies as an away responder when AUTO_REPLY_ENABLED is enabled.
-
-Public behavior:
-
-1) Responds naturally to WhatsApp DMs routed by CookMyBots.
-2) Responds briefly in groups or communities when CookMyBots routes those messages.
-3) Acknowledges the incoming message.
-4) Explains that the owner is currently unavailable or not online.
-5) Invites the sender to wait for a direct reply later.
-6) Uses friendly emojis without overusing them.
-7) Says clearly when the requested detail was not supplied by the owner.
-
-## Endpoint
-
-CookMyBots calls this endpoint:
+The bot receives normalized WhatsApp messages from CookMyBots at:
 
 POST /webhook/cookmybots/whatsapp
 
-The request must include:
-
-X-CookMyBots-Webhook-Secret: your configured CMB_WHATSAPP_WEBHOOK_SECRET
-
-The endpoint returns:
+It verifies X-CookMyBots-Webhook-Secret, uses CookMyBots AI Gateway to draft a short away reply, stores recent conversation and cooldown state in MongoDB when available, and returns:
 
 { "ok": true, "reply": "..." }
+
+The AI is the primary role detector, intent router, and final responder. There are no Telegram-style slash commands, menus, command maps, hard-coded categories, sales flows, support flows, moderation flows, products, prices, contacts, locations, policies, rules, or announcements.
+
+## Owner knowledge
+
+OWNER_KNOWLEDGE is loaded from the environment and preserved exactly as provided by the owner.
+
+It is the only source of truth. If OWNER_KNOWLEDGE is empty, or if a user asks for a detail missing from it, the bot must say the owner has not provided that detail yet instead of inventing an answer.
+
+## Public WhatsApp behavior
+
+Users send ordinary WhatsApp messages in DMs, groups, or communities routed by CookMyBots.
+
+The bot can naturally handle messages such as:
+
+1) Asking whether the owner is available.
+2) Asking why the owner is away.
+3) Asking when the owner might reply.
+4) Asking what the owner, business, group, or community is about.
+5) Leaving a message for the owner.
+6) Asking for details from OWNER_KNOWLEDGE.
+
+The bot keeps group replies shorter and avoids repeated spammy replies by using a per-chat cooldown.
 
 ## Environment variables
 
 PORT
-The HTTP port. Defaults to 3000.
+HTTP port. Defaults to 3000.
 
 CMB_WHATSAPP_WEBHOOK_SECRET
-Used to verify that inbound webhook calls came from CookMyBots. Configure this in the deployed service environment.
+Required. Verifies inbound managed WhatsApp webhook calls from CookMyBots.
 
 COOKMYBOTS_AI_ENDPOINT
-CookMyBots AI Gateway base URL. It must be a base URL such as https://api.cookmybots.com/api/ai. The bot appends /chat itself.
+Required for AI replies. CookMyBots AI Gateway base URL. Use a base URL such as https://api.cookmybots.com/api/ai. The bot appends /chat itself.
 
 COOKMYBOTS_AI_KEY
-CookMyBots AI Gateway key. The bot sends it using Authorization: Bearer, but never logs the key.
+Required for AI replies. Sent as Authorization: Bearer to CookMyBots AI Gateway. Never logged.
+
+OWNER_KNOWLEDGE
+Required owner prompt/knowledge. The code passes this raw value into AI context without rewriting it.
+
+MONGODB_URI
+Required for durable conversation memory, session state, cooldown tracking, and message idempotency. If MongoDB is unavailable, the bot logs the failure and continues with limited in-memory state.
+
+AUTO_REPLY_COOLDOWN_SECONDS
+Optional. Defaults to 3600 when missing or invalid. Reduces duplicate away replies in active chats while still allowing meaningful follow-up replies.
 
 AUTO_REPLY_ENABLED
-Optional. Defaults to true when missing. Set to false, 0, off, no, or disabled to pause auto replies.
-
-OWNER_DISPLAY_NAME
-Optional. Defaults to the owner when missing. Used only to help AI phrase natural away replies.
+Optional. Defaults to true. Set false, 0, off, no, or disabled to pause auto replies.
 
 AI_TIMEOUT_MS
 Optional. Defaults to 600000 milliseconds.
 
 AI_MAX_RETRIES
-Optional. Defaults to 2 retries.
+Optional. Defaults to 2.
 
 CONCURRENCY
-Optional. Defaults to 20 global simultaneous AI jobs. The bot also uses a per-chat lock so one chat cannot stack multiple AI replies at once.
+Optional. Defaults to 20 global simultaneous AI jobs. The bot also has a per-chat in-flight lock.
+
+## Database
+
+MongoDB collections used by this bot:
+
+1) convo_history stores recent user and assistant turns.
+2) auto_reply_cooldowns stores last inbound and last auto-reply timestamps per chat/user.
+3) message_logs stores processed message IDs for idempotency.
+
+Indexes are created only on application fields. The bot never creates an _id index manually.
+
+MongoDB update safety is followed: createdAt is insert-only, updatedAt is mutable, and updates never overwrite createdAt.
 
 ## Local setup
 
@@ -81,19 +90,19 @@ Optional. Defaults to 20 global simultaneous AI jobs. The bot also uses a per-ch
 
 npm install
 
-2) Copy the sample environment file:
+2) Copy environment sample:
 
 cp .env.sample .env
 
-3) Fill in CMB_WHATSAPP_WEBHOOK_SECRET and COOKMYBOTS_AI_KEY.
+3) Fill in CMB_WHATSAPP_WEBHOOK_SECRET, COOKMYBOTS_AI_ENDPOINT, COOKMYBOTS_AI_KEY, OWNER_KNOWLEDGE, and MONGODB_URI.
 
-4) Start development mode:
+4) Run locally:
 
 npm run dev
 
-## Local test
+## Local test endpoint
 
-You can test without WhatsApp transport by using /test:
+The /test endpoint is only for local HTTP testing. It is not a WhatsApp user command.
 
 curl -X POST http://localhost:3000/test \
   -H "Content-Type: application/json" \
@@ -101,21 +110,18 @@ curl -X POST http://localhost:3000/test \
 
 ## Deployment
 
-Deploy as one Node.js service on Render or a similar host.
+Deploy as a single Node.js service.
 
-Use:
+Build command:
+npm run build
 
-Build command: npm run build
-Start command: npm start
+Start command:
+npm start
 
-Do not create a worker process or queue process. This project runs as a single Node.js process.
+Do not run a separate worker or queue process.
 
 ## Logging
 
-The bot logs startup, environment sanity booleans, managed webhook handling, AI gateway start, AI gateway success, AI gateway failure, and occasional memory usage.
+The bot logs startup, env sanity booleans, managed WhatsApp receive/respond activity, AI call start/success/failure, DB failures, cooldown skips, backpressure, and lightweight memory usage.
 
-Secrets are never logged.
-
-## Database
-
-No database is required for this version. The bot keeps only a small bounded in-memory conversation context per chat to help AI respond naturally during the current process lifetime.
+Secrets, tokens, API keys, authorization headers, and full private owner knowledge are never logged.
