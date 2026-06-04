@@ -2,16 +2,14 @@
   "projectId": "a948ac28-57ca-4c2e-ad61-b3d57776ac2d",
   "commands": [
     {
-      "command": "/help",
-      "description": "List available commands",
-      "usage": "/help",
-      "example": "User sends /help → bot replies with commands."
-    },
-    {
-      "command": "/start",
-      "description": "Show welcome message",
-      "usage": "/start",
-      "example": "User sends /start → bot replies with intro."
+      "command": "Natural WhatsApp messages",
+      "description": "Users send ordinary WhatsApp messages in DMs, groups, or communities. The bot replies as an AI-first away auto-reply representative using only OWNER_KNOWLEDGE and recent context.",
+      "usage": "Send any WhatsApp message routed by CookMyBots.",
+      "examples": [
+        "User: Hi, are you there? → Bot: Thanks for your message 👋 The owner is currently away, but you can leave your message here and they’ll see it when they return.",
+        "User: What are your prices? → Bot: The owner has not provided pricing details yet. You can leave your question here for them to answer when they’re back 🙏"
+      ],
+      "notes": "There are no slash commands, menus, or Telegram-style command flows."
     }
   ],
   "aiMessages": [
@@ -22,6 +20,14 @@
     {
       "role": "assistant",
       "content": "Built the WhatsApp managed away auto-reply brain with AI gateway integration, safe env fallbacks, webhook verification, backpressure, logging, and DOCS.md.\n\nFiles touched (16): .env.sample, DOCS.md, README.md, package.json, src/bot.js, src/brain.js…\nValidation: ✅ project passes syntax/basic checks after this edit."
+    },
+    {
+      "role": "user",
+      "content": "Just create the bot"
+    },
+    {
+      "role": "assistant",
+      "content": "Refined the WhatsApp-only managed away auto-reply brain with env-loaded OWNER_KNOWLEDGE, AI gateway helper, Mongo-backed memory/cooldowns, safe fallbacks, logging, and updated docs.\n\nFiles touched (12): .env.sample, DOCS.md, README.md, package.json, src/bot.js, src/brain.js…\nValidation: ✅ project passes syntax/basic checks after this edit."
     }
   ],
   "createdBy": "6a21587da26af44cd0b2ab59",
@@ -292,12 +298,12 @@
       }
     },
     "a948ac28-57ca-4c2e-ad61-b3d57776ac2d:mpzdwpij:x2zs7b": {
-      "phase": "status",
+      "phase": "reindex",
       "stage": "chat",
       "runId": "a948ac28-57ca-4c2e-ad61-b3d57776ac2d:mpzdwpij:x2zs7b",
       "lastUserMessage": "Just create the bot",
       "startedAt": "2026-06-04T10:53:47.542Z",
-      "updatedAt": "2026-06-04T11:00:48.679Z",
+      "updatedAt": "2026-06-04T11:04:32.392Z",
       "message": "Preparing workspace for safe edits…",
       "commands": [],
       "ok": true,
@@ -544,12 +550,12 @@
     }
   },
   "runStatus": {
-    "phase": "status",
+    "phase": "reindex",
     "stage": "chat",
     "runId": "a948ac28-57ca-4c2e-ad61-b3d57776ac2d:mpzdwpij:x2zs7b",
     "lastUserMessage": "Just create the bot",
     "startedAt": "2026-06-04T10:53:47.542Z",
-    "updatedAt": "2026-06-04T11:00:48.679Z",
+    "updatedAt": "2026-06-04T11:04:32.392Z",
     "message": "Preparing workspace for safe edits…",
     "commands": [],
     "ok": true,
@@ -798,7 +804,7 @@
     {
       "key": "PORT",
       "title": "HTTP Port",
-      "description": "Port used by the Express service.",
+      "description": "Port used by the Express brain service.",
       "usage": "Read in src/lib/config.js and used by src/index.js.",
       "howToGet": "Provided by Render or set manually for local development.",
       "example": "3000",
@@ -823,7 +829,7 @@
       "howToGet": "Use the CookMyBots AI Gateway base URL.",
       "example": "https://api.cookmybots.com/api/ai",
       "isSecret": false,
-      "required": false
+      "required": true
     },
     {
       "key": "COOKMYBOTS_AI_KEY",
@@ -838,9 +844,9 @@
     {
       "key": "AUTO_REPLY_ENABLED",
       "title": "Auto Reply Enabled",
-      "description": "Optional control flag for whether away replies should be generated.",
-      "usage": "Defaults to true when missing. Set false, 0, off, no, or disabled to pause auto replies.",
-      "howToGet": "Set in the service environment if you want to override the default.",
+      "description": "Optional control flag for pausing away replies.",
+      "usage": "Defaults to true. Set false, 0, off, no, or disabled to pause replies.",
+      "howToGet": "Set in the service environment if needed.",
       "example": "true",
       "isSecret": false,
       "required": false
@@ -858,7 +864,7 @@
     {
       "key": "AI_TIMEOUT_MS",
       "title": "AI Timeout",
-      "description": "Timeout for CookMyBots AI Gateway calls.",
+      "description": "Timeout for CookMyBots AI Gateway chat calls.",
       "usage": "Defaults to 600000 milliseconds.",
       "howToGet": "Set in the service environment only if you need to override the default.",
       "example": "600000",
@@ -884,17 +890,48 @@
       "example": "20",
       "isSecret": false,
       "required": false
+    },
+    {
+      "key": "OWNER_KNOWLEDGE",
+      "title": "Owner Knowledge",
+      "description": "Raw owner prompt and knowledge used as the bot's only source of truth.",
+      "usage": "Loaded in src/lib/config.js and passed into every AI context without rewriting.",
+      "howToGet": "Paste the owner's exact away-reply/business/community instructions into the service environment.",
+      "example": "I am away during weekends. Please ask people to leave a message.",
+      "isSecret": false,
+      "required": true
+    },
+    {
+      "key": "MONGODB_URI",
+      "title": "MongoDB URI",
+      "description": "MongoDB connection string for durable conversation memory, cooldown tracking, and message idempotency.",
+      "usage": "Used by src/lib/memory.js. If unavailable, the bot logs the failure and continues with limited in-memory state.",
+      "howToGet": "Create a MongoDB Atlas database or provide your own MongoDB connection string.",
+      "example": "mongodb+srv://user:password@cluster.example/dbname",
+      "isSecret": true,
+      "required": true
+    },
+    {
+      "key": "AUTO_REPLY_COOLDOWN_SECONDS",
+      "title": "Auto Reply Cooldown",
+      "description": "Cooldown window used to reduce duplicate away replies in the same active chat.",
+      "usage": "Defaults to 3600 when missing or invalid.",
+      "howToGet": "Set in the service environment if you want a different cooldown.",
+      "example": "3600",
+      "isSecret": false,
+      "required": false
     }
   ],
   "commandDocs": [
     {
       "command": "Natural WhatsApp messages",
-      "description": "Users send normal WhatsApp messages. When auto-reply is enabled, the bot replies as a friendly away responder using AI and the owner-provided knowledge only.",
+      "description": "Users send ordinary WhatsApp messages in DMs, groups, or communities. The bot replies as an AI-first away auto-reply representative using only OWNER_KNOWLEDGE and recent context.",
       "usage": "Send any WhatsApp message routed by CookMyBots.",
       "examples": [
-        "User: Hi, are you there? → Bot: Thanks for your message 👋 The owner is currently unavailable, but they’ll reply when they’re back 😊"
+        "User: Hi, are you there? → Bot: Thanks for your message 👋 The owner is currently away, but you can leave your message here and they’ll see it when they return.",
+        "User: What are your prices? → Bot: The owner has not provided pricing details yet. You can leave your question here for them to answer when they’re back 🙏"
       ],
-      "notes": "There are no slash commands, menus, or command maps."
+      "notes": "There are no slash commands, menus, or Telegram-style command flows."
     }
   ]
 }
